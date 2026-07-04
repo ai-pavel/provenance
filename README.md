@@ -1,5 +1,7 @@
 # Event Sourcing Engine
 
+[![CI](https://github.com/pavel-genai/event-sourcing-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/pavel-genai/event-sourcing-engine/actions/workflows/ci.yml)
+
 A Clojure event sourcing framework with SQLite-backed event store (via next.jdbc), snapshot support, and a projection engine.
 
 ## Features
