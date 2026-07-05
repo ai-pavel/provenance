@@ -183,9 +183,16 @@
    (let [uncommitted (agg/get-uncommitted-events aggregate)]
      (when (seq uncommitted)
        (let [agg-id (:aggregate-id aggregate)
-             expected-version (- (:version aggregate) (count uncommitted))]
-         (append-events! ds agg-id uncommitted expected-version)
+             new-version (:version aggregate)
+             previous-version (- new-version (count uncommitted))]
+         (append-events! ds agg-id uncommitted previous-version)
+         ;; Snapshot when the committed range (previous-version, new-version]
+         ;; crosses at least one multiple of snapshot-interval. Using version
+         ;; buckets ensures a multi-event batch that jumps over the boundary
+         ;; (e.g. 3 -> 7 with interval 5) still snapshots exactly once, while
+         ;; repeated single-event saves snapshot at each boundary only once.
          (when (and (pos? snapshot-interval)
-                    (zero? (mod (:version aggregate) snapshot-interval)))
+                    (> (quot new-version snapshot-interval)
+                       (quot previous-version snapshot-interval)))
            (save-snapshot! ds (agg/create-snapshot aggregate)))))
      (agg/clear-uncommitted-events aggregate))))

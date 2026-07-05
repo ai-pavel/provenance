@@ -80,6 +80,32 @@
         (finally
           (.delete (java.io.File. db-path)))))))
 
+(deftest snapshot-created-when-batch-crosses-interval-boundary
+  (testing "A multi-event save that jumps over an interval boundary still snapshots"
+    (let [db-path (str "test_snap_batch_" (System/nanoTime) ".db")
+          ds (store/create-datasource db-path)]
+      (try
+        (store/initialize! ds)
+        ;; Interval 5. First save: versions 1..3 (no boundary crossed).
+        (let [acc (-> (bank/open-account "acc-1" "Alice" 100.0)
+                      (bank/deposit 10.0)
+                      (bank/deposit 10.0))]
+          (store/save-aggregate! ds acc 5)
+          (is (nil? (store/get-latest-snapshot ds "acc-1"))
+              "No snapshot before crossing the boundary"))
+        ;; Second save: versions 4..7 in one batch, crossing version 5.
+        (let [acc (-> (store/load-aggregate ds (bank/make-bank-account) "acc-1")
+                      (bank/deposit 10.0)
+                      (bank/deposit 10.0)
+                      (bank/deposit 10.0)
+                      (bank/deposit 10.0))]
+          (store/save-aggregate! ds acc 5)
+          (let [snap (store/get-latest-snapshot ds "acc-1")]
+            (is (some? snap) "Snapshot created when batch crosses the boundary")
+            (is (= 7 (:version snap)))))
+        (finally
+          (.delete (java.io.File. db-path)))))))
+
 (deftest projection-catches-up-on-events
   (testing "Projections process stored events correctly"
     (let [db-path (str "test_proj_" (System/nanoTime) ".db")
